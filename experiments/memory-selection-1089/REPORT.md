@@ -22,11 +22,13 @@
 | 现有统一记忆定制 | fork 内 [PR2](https://github.com/hmilyfyj/TencentDB-Agent-Memory/pull/2)，核对到 `5909d8698b0908544174d9a1ef50a4d0e50ec928`；仅引用前置验收，不启动、重测或修改这套服务 |
 | 主模型 | 本智能体自己已授权的标准入口，`auto/gpt-6.1-sol`；返回 `group/auto-gpt-6-1-sol`。底层不可变快照和单价未披露，不能声称固定了供应商内部模型版本 |
 | 向量模型 | 两边同一进程、同一权重：`BAAI/bge-small-zh-v1.5`，512维，fastembed **0.9.1** / onnxruntime **1.31.1**；Qdrant ONNX revision `46fbe35fd4374a00fee7de77dfddaeb6dd6a2c59`；权重 SHA-256 `1294ea4b6331115a353d81f96b85e8c8d7fdcc284453d5b2fab5b016230aad38` |
-| 连接与预算 | 标准入口的 chat 请求可用；没有远程 embedding 模型，预检返回404。因此新增临时本机 embedding/header bridge，两边共用。提炼输出预算3000、单请求60秒；盲问输出预算500；Hy提炼尝试1次；Core保留原生重试。未安装全局桌面采集器 |
+| 连接与预算 | 标准入口的 chat 请求可用；没有远程 embedding 模型，预检返回404。因此新增临时本机 embedding/header bridge，两边共用。Core提炼请求上限3000；Hy配置3000，但原生内部请求实际使用1500/2000/3000/6000，未改SDK强行拉齐。单请求60秒；两边盲问上限500；Hy提炼尝试1次，Core保留原生重试。未安装全局桌面采集器 |
 
 14 段输入、27 条原始消息、15 个新会话问题。包含公共偏好、私密日常、三个相似项目规则、规则更正/撤销/任务完成、一次性英文要求、未证实 Redis 推测、三条 coding 和一条 working 轨迹、两个并行项目写入。完整问题与预期在 `dataset.json`。模型只能收到检索结果与问题，不能收到评分字段；请求构造有自检。
 
 两边使用相同材料，但**没有假装结构完全一致**：Hy按每次调用选择场景；Core的主实例使用全局 chat 或 code 模板，两种配置均完整实测。Core普通L0只接受 user/assistant，本轮将工具调用和结果序列化为 assistant 数据；原生 Skill 补测另外使用 tool_call/tool_result。Hy映射一个合成user命名空间到一个范围；Core映射 team/agent。公共记录是人工标明的合成夹具，不是自动公共发布。Hy召回总limit10，Core每个范围limit10再合并；本轮实际内容量很小，不据此评大规模排名质量。
+
+Hy显式使用min_score=0观察召回与范围，Core使用原生atomic/search默认值，未调优检索阈值。主批Hy的22次提炼请求分别为10次3000、4次2000、4次6000、4次1500的输出上限；Core均为3000。因此输出预算并非严格相等，命中题数不能解释为等预算算法排名；耗费以实际usage另计。
 
 ## 同题问答与原文核验
 
