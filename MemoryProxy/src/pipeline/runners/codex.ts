@@ -112,6 +112,7 @@ import {
   isInstanceUpstreamBlocked,
 } from "../stages/instance-upstream-responses.js";
 import { hasExplicitAgentName, requireWecomIdentity } from "../../wecom-identity-form.js";
+import { beginScopedTurn, finishScopedTurn, type ScopedTurn } from "../../scoped-memory.js";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -908,11 +909,21 @@ export async function runCodexPipeline(
   }
 
   // ── 11. Forward to upstream ────────────────────────────────────────────────
+  let scopedTurn: ScopedTurn | null = null;
+  try {
+    const scoped = beginScopedTurn(config, userId, sessionId, body);
+    body = scoped.body;
+    scopedTurn = scoped.turn;
+  } catch {
+    // Do not forward a request whose memory scope or durable archive failed validation.
+    pipe.error("SCOPED_MEMORY", new Error("Scope validation or storage failed"));
+    return c.json({ error: "Scoped memory unavailable; check enabled account, session and storage" }, 503);
+  }
   return forwardToUpstream(c, config, body, traceId, startTime, keyId, wecomName || keyId, modelId, pipe, lf, archiveCtx, {
     seed: sessionTurnSeed,
     sessionInfo,
     authUserId: userId,
-  }, defaultBindingNotice);
+  }, defaultBindingNotice, scopedTurn);
 }
 
 // ── Archive context (skill/conversation/add + TDAI L0 write) ─────────────────
@@ -1049,6 +1060,7 @@ async function forwardToUpstream(
    * 实现见 pipeline/runners/default-binding-notice.ts。
    */
   defaultBindingNotice: string | null = null,
+  scopedTurn: ScopedTurn | null = null,
 ): Promise<Response> {
   // Per-agent upstream override (upstream.agents.codex.url) 优先于全局 url。
   // 对齐 anthropicHandler.ts:1029 的解析姿势。codex 通常需要单独指向支持
@@ -1294,8 +1306,13 @@ async function forwardToUpstream(
       }
       toolCalls = collectResponsesToolCalls(responseBody.output);
       outputText = collectResponsesOutputText(responseBody);
+      finishScopedTurn(scopedTurn, outputText, responseBody.status === "completed", toolCalls.length);
       submitSessionTurn(sessionTurnCtx, responsesReplyFromJson(responseBody), modelId);
-    } catch {
+    } catch (error) {
+      if (scopedTurn) {
+        pipe.error("SCOPED_MEMORY_RESPONSE", new Error("Response parse or durable archive failed"));
+        return c.json({ error: "Scoped response archive failed; inspect local service logs" }, 502);
+      }
       // Preserve an unexpected non-JSON response without billing it.
     }
     if (lf) {
@@ -1385,7 +1402,7 @@ async function forwardToUpstream(
   // 只要有 lf 或 archiveCtx 任一非空就必须 tee 一份 tap 流。
   // Main turns are tapped for observability/archive; auxiliary Responses calls
   // are tapped for credit only.
-  const needTap = Boolean(lf) || Boolean(archiveCtx) || !skipCreditReport;
+  const needTap = Boolean(lf) || Boolean(archiveCtx) || Boolean(scopedTurn) || !skipCreditReport;
   if (!needTap || !upstreamResp.body) {
     // 不 tap 也要剥离：注入与否跟观测无关，客户端校验一样会拒。
     // v3.3: 若命中账户默认, 同样在最前面插 ✅ 绑定提示。
@@ -1439,6 +1456,7 @@ async function forwardToUpstream(
     skipCreditReport,
     preparedStats,
     archiveCtx,
+    scopedTurn,
     sessionTurnCtx,
   });
 
@@ -1517,6 +1535,7 @@ export interface CodexTapContext {
    * null 表示当前请求不需要触发归档 (aux / session 未初始化 / bypass)。
    */
   archiveCtx?: CodexArchiveCtx | null;
+  scopedTurn?: ScopedTurn | null;
   /** Online session trace for this call; null when it is not recorded. */
   sessionTurnCtx?: SessionTurnContext | null;
 }
@@ -1531,10 +1550,10 @@ export interface CodexTapContext {
  *
  * 失败静默——埋点绝不影响业务链路。
  */
-export function consumeCodexStream(stream: ReadableStream<Uint8Array>, ctx: CodexTapContext): void {
+export function consumeCodexStream(stream: ReadableStream<Uint8Array>, ctx: CodexTapContext): Promise<void> {
   const { lf, modelId, startTime, upstreamUrl, inputBody, pipe, archiveCtx } = ctx;
 
-  (async () => {
+  return (async () => {
     const decoder = new TextDecoder();
     let sseBuf = "";
     let usage: Record<string, unknown> = {};
@@ -1543,10 +1562,16 @@ export function consumeCodexStream(stream: ReadableStream<Uint8Array>, ctx: Code
     let toolCalls: UpstreamToolCall[] = [];
     let stopReason: string | undefined;
     let streamCompleted = false;
+    let scopedCompleted = false;
     const replyAssembler = ctx.sessionTurnCtx ? new ResponsesAssembler() : null;
     async function completeStream(): Promise<void> {
       if (streamCompleted) return;
       streamCompleted = true;
+      try {
+        finishScopedTurn(ctx.scopedTurn, outputText, scopedCompleted, Math.max(toolUseCount, toolCalls.length));
+      } catch {
+        pipe.error("SCOPED_MEMORY_RESPONSE", new Error("Durable response archive failed"));
+      }
 
       if (replyAssembler) {
         parseSseData(sseBuf).forEach((evt) => replyAssembler.push(evt));
@@ -1743,6 +1768,8 @@ export function consumeCodexStream(stream: ReadableStream<Uint8Array>, ctx: Code
               if (item?.type === "function_call") toolUseCount++;
             } else if (evtType === "response.completed") {
               const resp = evt.response as Record<string, unknown> | undefined;
+              scopedCompleted = resp?.status === "completed";
+              if (!outputText && resp) outputText = collectResponsesOutputText(resp);
               if (resp?.usage) {
                 Object.assign(usage, resp.usage as Record<string, unknown>);
               }

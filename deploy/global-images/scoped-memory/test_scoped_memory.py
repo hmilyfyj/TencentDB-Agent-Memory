@@ -199,6 +199,14 @@ class OverlayTests(unittest.TestCase):
                                   self.projects)
             self.assertEqual(self.store.query(['public']), [])
 
+    def test_management_cannot_publish_from_removed_project(self):
+        candidate = self.store.write(self.scope, 'method', 'skill', 'private method', 'candidate', 'test')
+        with patch.dict(os.environ, {}, clear=True), patch('sys.stdin.isatty', return_value=True):
+            with patch('builtins.input', return_value='PUBLISH ' + candidate['id']):
+                with self.assertRaises(Denied):
+                    management_action(self.store, parser().parse_args(['publish', '--id', candidate['id']]), [])
+        self.assertEqual(self.store.query(['public']), [])
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -139,9 +139,16 @@ class Store:
                 self.db.rollback()
             raise
 
-    def publish(self, candidate):
+    def publish(self, candidate, text=None):
         self.db.execute('BEGIN IMMEDIATE')
         try:
+            current = self.get(candidate['id'])
+            if (current != candidate or current['state'] != 'candidate' or
+                    current['kind'] not in ('preference', 'skill') or current['scope'] == 'public'):
+                raise Denied('Only a current private preference/skill candidate may be published')
+            if text is not None and text != candidate['text']:
+                candidate = self.write(candidate['scope'], candidate['name'], candidate['kind'],
+                                       text, 'candidate', 'human-edited:' + candidate['id'], candidate['id'])
             self.write(candidate['scope'], candidate['name'], candidate['kind'],
                        candidate['text'], 'published', 'human-reviewed:' + candidate['id'],
                        candidate['id'])
@@ -197,6 +204,8 @@ def management_action(store, args, projects):
         return store.query(['public', 'daily', *('project:' + p for p in projects)],
                            args.query, args.kind, all_states=True)[:args.limit]
     old = store.get(args.id)
+    if old['scope'] not in ['public', 'daily', *('project:' + p for p in projects)]:
+        raise Denied('Scope is no longer available to management')
     if args.action == 'publish' and (old['state'] != 'candidate' or
                                      old['kind'] not in ('preference', 'skill')):
         raise Denied('Only a reviewed preference/skill candidate may be published')
