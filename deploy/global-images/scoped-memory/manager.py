@@ -24,26 +24,29 @@ def server(home, port=8126):
             pass  # No record text, passwords or cookies in access logs.
 
         def send(self, body, status=200, cookie=None):
-            self.send_response(status)
-            self.send_header('Content-Type', 'text/html; charset=utf-8')
-            self.send_header('Cache-Control', 'no-store')
-            self.send_header('Content-Security-Policy',
-                             "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
-            self.send_header('X-Content-Type-Options', 'nosniff')
-            self.send_header('Referrer-Policy', 'no-referrer')
-            if cookie:
-                self.send_header('Set-Cookie', cookie)
-            self.end_headers()
             page = ('<!doctype html><html lang="zh-CN"><meta charset="utf-8">'
                     '<meta name="viewport" content="width=device-width"><title>私有记忆审核</title>'
                     '<style>body{font:16px system-ui;max-width:1000px;margin:2rem auto;padding:0 1rem}'
                     'pre{white-space:pre-wrap;overflow-wrap:anywhere}textarea{width:95%;height:12rem}'
                     'input,select,button{font:inherit;margin:.4rem}article{border-top:1px solid #aaa;padding:1rem 0}'
-                    '</style><h1>私有记忆审核</h1>' + body + '</html>')
-            self.wfile.write(page.encode())
+                    '</style><h1>私有记忆审核</h1>' + body + '</html>').encode()
+            self.send_response(status)
+            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.send_header('Content-Length', str(len(page)))
+            self.send_header('Cache-Control', 'no-store')
+            self.send_header('Content-Security-Policy',
+                             "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
+            self.send_header('X-Content-Type-Options', 'nosniff')
+            # Native form submissions need their same-origin Origin header.
+            self.send_header('Referrer-Policy', 'same-origin')
+            if cookie:
+                self.send_header('Set-Cookie', cookie)
+            self.end_headers()
+            self.wfile.write(page)
 
         def host_ok(self):
-            return self.headers.get('Host') == f'127.0.0.1:{self.server.server_port}'
+            return self.headers.get('Host') in (
+                f'127.0.0.1:{self.server.server_port}', f'localhost:{self.server.server_port}')
 
         def authenticated(self):
             try:
@@ -111,7 +114,7 @@ def server(home, port=8126):
                 store.db.close()
 
         def do_POST(self):
-            origin = f'http://127.0.0.1:{self.server.server_port}'
+            origin = f'http://{self.headers.get("Host")}'
             if not self.host_ok() or self.headers.get('Origin') != origin:
                 return self.send('Origin rejected', 403)
             try:

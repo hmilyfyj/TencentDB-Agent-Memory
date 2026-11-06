@@ -50,15 +50,37 @@ class ManagerTests(unittest.TestCase):
         return self.request('/record?id=' + self.candidate['id'])[2]
 
     def test_auth_host_origin_and_csrf_boundaries(self):
-        self.assertEqual(self.request()[0], 401)
-        self.assertEqual(self.request(headers={'Host': 'evil.example'})[0], 403)
+        status, headers, _ = self.request()
+        self.assertEqual(status, 401)
+        self.assertEqual(headers['Referrer-Policy'], 'same-origin')
+        for host in ['evil.example', f'localhost.evil.example:{self.httpd.server_port}', 'localhost:1']:
+            self.assertEqual(self.request(headers={'Host': host})[0], 403)
         self.assertEqual(self.request('/login', {'password': 'bad'})[0], 401)
         self.assertEqual(self.request('/login', {'password': '错误密码'})[0], 401)
-        self.assertEqual(self.request('/login', {'password': self.password}, {'Origin': 'https://evil.example'})[0], 403)
+        for origin in ['https://evil.example', 'null', '']:
+            self.assertEqual(self.request('/login', {'password': self.password}, {'Origin': origin})[0], 403)
         self.login()
         self.assertEqual(self.request('/action', {'csrf': 'bad'})[0], 403)
         self.assertEqual(self.request('/action', {'csrf': '错误令牌'})[0], 403)
         self.assertEqual(self.store.query(['public']), [])
+
+    def test_localhost_native_review_requires_matching_origin(self):
+        alias = {'Host': f'localhost:{self.httpd.server_port}',
+                 'Origin': f'http://localhost:{self.httpd.server_port}'}
+        self.assertEqual(self.request(headers=alias)[0], 401)
+        self.assertEqual(self.request('/login', {'password': self.password},
+                                      {**alias, 'Origin': self.origin})[0], 403)
+        status, headers, _ = self.request('/login', {'password': self.password}, alias)
+        self.assertEqual(status, 200)
+        self.cookie = headers['Set-Cookie'].split(';')[0]
+        page = self.request('/record?id=' + self.candidate['id'], headers=alias)[2]
+        csrf = re.search('name="csrf" value="([^"]+)"', page)[1]
+        data = dict(csrf=csrf, id=self.candidate['id'], action='publish',
+                    text='reviewed synthetic preference', confirmation='PUBLISH ' + self.candidate['id'])
+        self.assertEqual(self.request('/action', data, {**alias, 'Origin': self.origin})[0], 403)
+        self.assertEqual(self.store.query(['public']), [])
+        self.assertEqual(self.request('/action', data, alias)[0], 200)
+        self.assertEqual(self.store.query(['public'])[0]['text'], data['text'])
 
     def test_review_edit_publish_stale_reject_and_public_revocation(self):
         page = self.login()
