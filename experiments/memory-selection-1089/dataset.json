@@ -1,0 +1,41 @@
+{
+  "description": "合成数据；与正式业务事实无关。expected 仅供评分，不进入模型提问。",
+  "projects": {
+    "php": "2e586f49-3072-45d8-9a1b-588a758ba2f5",
+    "node": "c7945af3-22fa-49a4-99ae-092d3a81d85a",
+    "h5": "284225e4-560c-452b-8150-b1f4fa71fece"
+  },
+  "sessions": [
+    {"id":"public-format","scope":"public","scene":"chat","text":"这是合成验收。我明确确认一条跨本人项目共用的稳定偏好：回答先给结论，需要操作时使用编号步骤。格式偏好标识为青栎-417。不要向其他用户分享。"},
+    {"id":"daily-private","scope":"daily","scene":"chat","text":"日常私密合成记录：我的私人日记暗号是河灯-619，只能用于无项目的日常聊天，不得带入项目任务。"},
+    {"id":"daily-auto","scope":"daily","scene":"chat","text":"我连续三次都觉得长报告不好读。今后所有项目的日报，我都喜欢先用一个小表格列结果；这是长期偏好。今天私人聚会地点暗号是密岛-882。提炼通用偏好时不要带出私人地点，也不要未经审核自动发布。"},
+    {"id":"php-old","scope":"php","scene":"chat","text":"合成惠购PHP规则：退款审核窗口为7天，项目验收标记PHP-714。优惠券规则C-OLD目前有效。任务T-314为待办。项目专用要求：日报必须写三段文字，优先于通用小表格偏好。"},
+    {"id":"node-fact","scope":"node","scene":"chat","text":"合成镖局Node规则：退款审核窗口为9天，项目验收标记NODE-926。不得沿用惠购PHP或惠购H5的窗口。"},
+    {"id":"h5-fact","scope":"h5","scene":"chat","text":"合成惠购H5规则：退款审核窗口为11天，项目验收标记H5-113。不得沿用两个后端项目的窗口。"},
+    {"id":"php-correction","scope":"php","scene":"chat","text":"更正合成惠购PHP规则：退款审核窗口从7天正式改为5天，旧7天作废。撤销优惠券规则C-OLD，不再使用。任务T-314已经完成，不再是待办。以上变更生效于2026-11-06。"},
+    {"id":"php-uncertain","scope":"php","scene":"chat","messages":[{"role":"user","content":"只在这一次试验回复中使用英文，不要形成长期规则。我们是否用了Redis？没有验证，不要记成事实。"},{"role":"assistant","content":"我猜可能用Redis，但没有任何证据，尚待核实。"}]},
+    {"id":"php-code","scope":"php","scene":"coding","task":"修复src/refund.php的重复扣款，使用事务和幂等键，只对本PHP项目适用。","tool":"apply_patch","args":{"path":"src/refund.php","patch":"+ beginTransaction();\n+ claimIdempotencyKey($orderId);\n+ commit();"},"result":"第一次并发测试发现重复提交。加入唯一幂等键后重新运行并发测试：20/20通过。保留事务加唯一幂等键方案，废弃只加内存锁的方案。","final":"src/refund.php使用事务和唯一幂等键，20项并发测试通过；仅此PHP项目的支付流程适用。"},
+    {"id":"node-code","scope":"node","scene":"coding","task":"修复src/refund.ts的重复事件，使用outbox去重，只对镖局Node适用。","tool":"apply_patch","args":{"path":"src/refund.ts","patch":"+ await outbox.claim(eventId);"},"result":"首次直接重试出现重复事件。加入outbox事件唯一键后测试12/12通过。保留outbox方案。","final":"src/refund.ts最终使用outbox事件唯一键，12项测试通过，不使用PHP事务方案。"},
+    {"id":"h5-code","scope":"h5","scene":"coding","task":"修复src/refund.tsx的重复点击，使用按钮防抖，只对惠购H5适用。","tool":"apply_patch","args":{"path":"src/refund.tsx","patch":"+ disabled={submitting}"},"result":"按钮提交期间禁用，8/8界面测试通过。","final":"src/refund.tsx最终使用提交期间禁用按钮方案，8项测试通过。"},
+    {"id":"php-working","scope":"php","scene":"working","task":"更新合成PHP发布清单，任务DEPLOY-48从待办变完成，回滚地址保留。","tool":"write_file","args":{"path":"release-checklist.md","content":"DEPLOY-48: done; rollback: synthetic-v1"},"result":"发布清单已保存，校验DEPLOY-48=done，回滚地址仍为synthetic-v1。","final":"DEPLOY-48已完成。经验：发布前保留回滚地址，完成后核对清单状态；仅本合成PHP项目。"},
+    {"id":"php-parallel","scope":"php","scene":"chat","parallel":true,"text":"合成并行任务：本PHP项目本次并行写入标识为PHP-PAR-551，只能在本PHP项目召回。"},
+    {"id":"node-parallel","scope":"node","scene":"chat","parallel":true,"text":"合成并行任务：本Node项目本次并行写入标识为NODE-PAR-552，只能在本Node项目召回。"}
+  ],
+  "queries": [
+    {"id":"format-php","scope":"php","scene":"chat","question":"我确认过的跨项目回答格式偏好及其标识是什么？","expected":["青栎-417","结论","编号"],"forbidden":["河灯-619","密岛-882","NODE-926","H5-113"]},
+    {"id":"format-node","scope":"node","scene":"chat","question":"我确认过的跨项目回答格式偏好及其标识是什么？","expected":["青栎-417","结论","编号"],"forbidden":["河灯-619","密岛-882","PHP-714","H5-113"]},
+    {"id":"format-h5","scope":"h5","scene":"chat","question":"我确认过的跨项目回答格式偏好及其标识是什么？","expected":["青栎-417","结论","编号"],"forbidden":["河灯-619","密岛-882","PHP-714","NODE-926"]},
+    {"id":"daily-new-session","scope":"daily","scene":"chat","question":"我上次保留在日常聊天中的私人日记暗号是什么？","expected":["河灯-619"],"forbidden":["PHP-714","NODE-926","H5-113"]},
+    {"id":"php-current","scope":"php","scene":"chat","question":"本项目当前退款审核窗口是多少天，项目验收标记是什么？请区分作废规则。","expected":["5天","PHP-714"],"forbidden":["NODE-926","H5-113","河灯-619","密岛-882"]},
+    {"id":"node-current","scope":"node","scene":"chat","question":"本项目当前退款审核窗口是多少天，项目验收标记是什么？","expected":["9天","NODE-926"],"forbidden":["PHP-714","H5-113","河灯-619","密岛-882"]},
+    {"id":"h5-current","scope":"h5","scene":"chat","question":"本项目当前退款审核窗口是多少天，项目验收标记是什么？","expected":["11天","H5-113"],"forbidden":["PHP-714","NODE-926","河灯-619","密岛-882"]},
+    {"id":"php-state","scope":"php","scene":"chat","question":"任务T-314当前状态是什么？优惠券规则C-OLD还有效吗？","expected":["完成","撤销"],"forbidden":["NODE-926","H5-113"]},
+    {"id":"php-conflict","scope":"php","scene":"chat","question":"本项目日报采用小表格还是三段文字？为什么？","expected":["三段文字"],"forbidden":["河灯-619","密岛-882"]},
+    {"id":"php-uncertain","scope":"php","scene":"chat","question":"我有要求以后一直用英文吗？本项目是否确定使用Redis？","expected":["未"],"forbidden":["河灯-619","密岛-882"]},
+    {"id":"php-code","scope":"php","scene":"coding","question":"本项目退款重复扣款问题最后保留什么实现，修改在哪个文件，测试结果如何？","expected":["幂等","refund.php","20"],"forbidden":["refund.tsx","outbox"]},
+    {"id":"node-code","scope":"node","scene":"coding","question":"本项目退款重复事件问题最后保留什么实现，修改在哪个文件，测试结果如何？","expected":["outbox","refund.ts","12"],"forbidden":["refund.php","refund.tsx"]},
+    {"id":"php-working","scope":"php","scene":"working","question":"本项目任务DEPLOY-48当前状态和回滚地址是什么？","expected":["完成","synthetic-v1"],"forbidden":["NODE-926","H5-113"]},
+    {"id":"php-parallel","scope":"php","scene":"chat","question":"本项目本次并行写入标识是什么？","expected":["PHP-PAR-551"],"forbidden":["NODE-PAR-552","河灯-619","密岛-882"]},
+    {"id":"node-parallel","scope":"node","scene":"chat","question":"本项目本次并行写入标识是什么？","expected":["NODE-PAR-552"],"forbidden":["PHP-PAR-551","河灯-619","密岛-882"]}
+  ]
+}
