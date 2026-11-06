@@ -163,6 +163,7 @@ const ALLOWED_SUBPATHS = new Set<string>([
 
 /** Write subpaths — rejected when `allowLlmWrite=false`. */
 const WRITE_SUBPATHS = new Set<string>([
+  "extract", // Force-archive can create active skills from an existing conversation buffer.
   "create",
   "update",
   "patch",

@@ -560,6 +560,8 @@ export interface AgentUpstreamEntry {
 
 /** Top-level proxy configuration (merged from config file + CLI args). */
 export interface ProxyConfig {
+  /** Opt-in owner-private experiment; absent leaves existing deployments unchanged. */
+  scopedMemory?: import("./scoped-memory.js").ScopedMemoryConfig;
   server: {
     host: string; // default: "0.0.0.0"
     port: number; // default: 8096
@@ -1062,6 +1064,7 @@ export interface RawYamlConfig {
   };
   /** Opaque private review options, forwarded to the extension untouched. */
   badcaseCollector?: Record<string, unknown>;
+  scopedMemory?: import("./scoped-memory.js").ScopedMemoryConfig;
   injection?: {
     enabled?: boolean;
     endpoint?: string;

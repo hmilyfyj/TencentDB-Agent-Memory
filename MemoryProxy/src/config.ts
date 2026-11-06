@@ -531,6 +531,7 @@ export function buildConfig(
           : DEFAULT_CONFIG.injection.assetReflection!.markerOptIn,
       },
     },
+    scopedMemory: yaml.scopedMemory,
     extraction: {
       enabled: yaml.extraction?.enabled ?? DEFAULT_CONFIG.extraction.enabled,
       extractors: yaml.extraction?.extractors ?? DEFAULT_CONFIG.extraction.extractors,
