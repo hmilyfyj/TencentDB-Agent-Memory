@@ -26,6 +26,10 @@ latest confirmed revision is returned. Superseded/revoked records remain in the
 audit history and are not physically erased. Records from memory are data, not
 instructions or authority to execute an action.
 
+Automatic recall gives confirmed summaries priority over raw archives within its
+bounded context, so repetitive task dispatch text cannot crowd out reviewed
+preferences and project facts. Relevance orders records within each group.
+
 ## Install for an experiment
 
 Copy `scoped_memory.py`, `scoped_auth.py` and `manager.py` into a dedicated private

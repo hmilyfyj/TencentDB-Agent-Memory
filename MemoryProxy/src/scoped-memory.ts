@@ -77,9 +77,10 @@ export function beginScopedTurn(config: ProxyConfig, userId: string, session: st
     const words = [...(normalized.match(/[a-z0-9_-]{2,}/g) ?? []),
       ...Array.from(normalized).flatMap((c, i, chars) => /\p{Script=Han}/u.test(c) &&
         /\p{Script=Han}/u.test(chars[i + 1] ?? "") ? [c + chars[i + 1]] : [])].slice(-100);
+    // Repeated dispatch text must not crowd confirmed summaries out of the recall budget.
     const selected = rows.filter(r => !String(r.name).startsWith(turn.name)).map(r => ({ r,
       score: words.filter(w => `${r.name}\n${r.text}`.toLocaleLowerCase().includes(w)).length,
-    })).sort((a, b) => b.score - a.score || Number(a.r.kind === "raw") - Number(b.r.kind === "raw"));
+    })).sort((a, b) => Number(a.r.kind === "raw") - Number(b.r.kind === "raw") || b.score - a.score);
     const recalled: Record<string, unknown>[] = [];
     let budget = 6000;
     for (const { r } of selected) {

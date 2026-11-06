@@ -58,6 +58,17 @@ describe("private automatic scoped capture", () => {
     expect(() => beginScopedTurn({ ...config(), scopedMemory: { database: path,
       accounts: { bad: "project:" + "-".repeat(36) } } }, "bad", "s", body())).toThrow();
   });
+  it("keeps confirmed preferences and project facts ahead of repetitive dispatch archives", () => {
+    seed("public", "reviewed-style", "Answer with the conclusion first.", "confirmed", "preference");
+    seed(project, "project-decision", "Use the project-specific workflow.");
+    for (let i = 0; i < 12; i++)
+      seed(project, `dispatch-${i}`, "assigned issue validation tool output ".repeat(15), "confirmed", "raw");
+    const result = beginScopedTurn(config(), "project", "fresh", body("assigned issue validation tool output"));
+    const injection = JSON.stringify((result.body.input as unknown[])[0]);
+    expect(injection).toContain("Answer with the conclusion first.");
+    expect(injection).toContain("Use the project-specific workflow.");
+    expect(injection).toContain("dispatch-");
+  });
   it("archives once across tool loops and retries, preserves raw text, and never promotes public", () => {
     const original = "private text ".repeat(3000);
     const a = beginScopedTurn(config(), "daily", "a", body(original));
